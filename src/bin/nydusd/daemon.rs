@@ -46,6 +46,9 @@ use rafs::{
 use crate::upgrade::{self, UpgradeManager, UpgradeMgrError};
 use crate::EVENT_MANAGER_RUN;
 
+//use thiserror::Error;
+
+
 //TODO: Try to public below type from fuse-rs thus no need to redefine it here.
 type BackFileSystem = Box<dyn BackendFileSystem<Inode = u64, Handle = u64> + Send + Sync>;
 
@@ -86,11 +89,13 @@ impl From<RafsError> for DaemonError {
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum DaemonError {
     /// Invalid arguments provided.
+    #[error("Invalid argument: {0}")]
     InvalidArguments(String),
     /// Invalid config provided
+    #[error("Invalid config: {0}")]
     InvalidConfig(String),
     /// Failed to handle event other than input event.
     HandleEventNotEpollIn,
@@ -112,6 +117,7 @@ pub enum DaemonError {
     /// Failure against Passthrough FS.
     PassthroughFs(io::Error),
     /// Daemon related error
+    #[error("Daemon error: {0}")]
     DaemonFailure(String),
 
     Common(String),
@@ -139,19 +145,6 @@ pub enum DaemonError {
     Downcast(String),
     FsTypeMismatch(String),
 }
-
-impl fmt::Display for DaemonError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidArguments(s) => write!(f, "Invalid argument: {}", s),
-            Self::InvalidConfig(s) => write!(f, "Invalid config: {}", s),
-            Self::DaemonFailure(s) => write!(f, "Daemon error: {}", s),
-            _ => write!(f, "{:?}", self),
-        }
-    }
-}
-
-impl error::Error for DaemonError {}
 
 impl From<DaemonError> for io::Error {
     fn from(e: DaemonError) -> Self {
