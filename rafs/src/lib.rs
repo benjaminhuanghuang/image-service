@@ -16,6 +16,7 @@ use std::fs::File;
 use std::io::{BufWriter, Error, Read, Result, Seek, SeekFrom, Write};
 use std::os::unix::io::AsRawFd;
 
+use thiserror::Error as ThisError;
 use crate::metadata::layout::{align_to_rafs, RAFS_ALIGNMENT};
 
 pub mod fs;
@@ -23,18 +24,29 @@ pub mod metadata;
 #[macro_use]
 extern crate storage;
 
-#[derive(Debug)]
+#[derive(Debug, ThisError)]
 pub enum RafsError {
+    #[error("Operation not supported.")]
     Unsupported,
+    #[error("")]
     Uninitialized,
+    #[error("Already mounted.")]
     AlreadyMounted,
+    #[error("Read metadata failed.")]
     ReadMetadata(Error),
+    #[error("Load config failed.")]
     LoadConfig(Error),
+    #[error("Parse config failed.")]
     ParseConfig(serde_json::Error),
+    #[error("Swap backend failed.")]
     SwapBackend(Error),
+    #[error("Fill super block failed.")]
     FillSuperblock(Error),
+    #[error("Create device failed.")]
     CreateDevice(Error),
+    #[error("Prefetch failed.")]
     Prefetch(String),
+    #[error("Configure error.")]
     Configure(String),
 }
 

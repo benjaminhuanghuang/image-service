@@ -19,8 +19,7 @@ use std::sync::{
     mpsc::{Receiver, Sender},
     Arc, MutexGuard,
 };
-use std::thread;
-use std::{error, fmt, io};
+use std::{thread, io};
 
 use event_manager::{EventOps, EventSubscriber, Events};
 use fuse_rs::api::{vfs::VfsError, BackendFileSystem, Vfs};
@@ -46,8 +45,7 @@ use rafs::{
 use crate::upgrade::{self, UpgradeManager, UpgradeMgrError};
 use crate::EVENT_MANAGER_RUN;
 
-//use thiserror::Error;
-
+use thiserror::Error as ThisError;
 
 //TODO: Try to public below type from fuse-rs thus no need to redefine it here.
 type BackFileSystem = Box<dyn BackendFileSystem<Inode = u64, Handle = u64> + Send + Sync>;
@@ -82,79 +80,92 @@ impl From<i32> for DaemonState {
     }
 }
 
-impl From<RafsError> for DaemonError {
-    fn from(error: RafsError) -> Self {
-        DaemonError::Rafs(error)
-    }
-}
-
 #[allow(dead_code)]
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, ThisError)]
 pub enum DaemonError {
     /// Invalid arguments provided.
-    #[error("Invalid argument: {0}")]
+    #[error("Invalid arguments provided: {0}.")]
     InvalidArguments(String),
     /// Invalid config provided
-    #[error("Invalid config: {0}")]
+    #[error("Invalid config proviede: {0}.")]
     InvalidConfig(String),
     /// Failed to handle event other than input event.
+    #[error("Failed to handle event other than input event.")]
     HandleEventNotEpollIn,
     /// Failed to handle unknown event.
+    #[error("Failed to handle unknown event.")]
     HandleEventUnknownEvent,
     /// No memory configured.
+    #[error("No memory configured.")]
     NoMemoryConfigured,
     /// Invalid Virtio descriptor chain.
     #[cfg(feature = "virtiofs")]
+    #[error("Invalid Virtio descriptor chain.")]
     InvalidDescriptorChain(FuseTransportError),
     /// Processing queue failed.
+    #[error("Processing queue failed.")]
     ProcessQueue(VhostUserFsError),
     /// Cannot create epoll context.
+    #[error("Cannot create epoll context.")]
     Epoll(io::Error),
     /// Cannot clone event fd.
+    #[error("Cannot clone event fd.")]
     EventFdClone(io::Error),
     /// Cannot spawn a new thread
+    #[error("Cannot spawn a new thread.")]
     ThreadSpawn(io::Error),
     /// Failure against Passthrough FS.
+    #[error("Failure against Passthrough FS.")]
     PassthroughFs(io::Error),
     /// Daemon related error
-    #[error("Daemon error: {0}")]
+    #[error("Daemon related error: {0}.")]
     DaemonFailure(String),
-
+    #[error("Common error: {0}.")]
     Common(String),
+    #[error("Not found error.")]
     NotFound,
+    #[error("Already existed error.")]
     AlreadyExists,
-    Serde(SerdeError),
+    #[error("Serde error: {0}.")]
+    Serde(#[from] SerdeError),
+    #[error("Upgrade manager error.")]
     UpgradeManager(UpgradeMgrError),
-    Vfs(VfsError),
-    Rafs(RafsError),
+    #[error("Vfs error.")]
+    Vfs(#[from] VfsError),
+    #[error("Rafs error.")]
+    Rafs(#[from] RafsError),
     /// Daemon does not reach the stable working state yet,
     /// some capabilities may not be provided.
+    #[error("Daemon does not reach the stable working state yet, some capabilities may not be provided.")]
     NotReady,
     /// Daemon can't fulfill external requests.
+    #[error("Daemon can't fulfill external requests.")]
     Unsupported,
     /// State-machine related error codes if something bad happens when to communicate with state-machine
+    #[error("State-machine related error codes if something bad happens when to communicate with state-machine: {0}.")]
     Channel(String),
     /// Input event to stat-machine is not expected.
+    #[error("Input event to stat-machine is not expected.")]
     UnexpectedEvent(DaemonStateMachineInput),
     /// File system backend service related errors.
+    #[error("File system backend service related errors.: {0}.")]
     StartService(String),
+    #[error("Service stop.")]
     ServiceStop,
     /// Wait daemon failure
+    #[error("Wait daemon failure.")]
     WaitDaemon(io::Error),
+    #[error("Session shutdown.")]
     SessionShutdown(io::Error),
+    #[error("Downcas error: {0}.")]
     Downcast(String),
+    #[error("FS type mismatch: {0}.")]
     FsTypeMismatch(String),
 }
 
 impl From<DaemonError> for io::Error {
     fn from(e: DaemonError) -> Self {
         einval!(e)
-    }
-}
-
-impl From<VfsError> for DaemonError {
-    fn from(e: VfsError) -> Self {
-        DaemonError::Vfs(e)
     }
 }
 
@@ -715,5 +726,30 @@ mod tests {
         {
             panic!("failed to create rafs backend")
         }
+    }
+
+    #[test]
+    fn it_should_display_correct_daemon_error_message() {
+        let msg = "ABCabc";
+        let err = DaemonError::InvalidArguments("ABCabc");
+        assert_eq!(err.to_string(), format!("Invalid arguments provided: {}.", msg));
+
+        let err = DaemonError::HandleEventNotEpollIn;
+        assert_eq!(err.to_string(), "Failed to handle event other than input event.");
+
+        let err = DaemonError::ProcessQueue(VhostUserFsError);
+        assert_eq!(err.to_string(), "Processing queue failed.");
+
+        let err = DaemonError::ProcessQueue(io::Error);
+        assert_eq!(err.to_string(), "Processing queue failed.");
+    }
+
+    #[test]
+    fn it_should_covert_io_error_to_daemon_error() {
+        let err = DaemonError.from(VfsError);
+        assert_eq!(err, DaemonError.Vfs);
+
+        let err = DaemonError.from(RafsError);
+        assert_eq!(err, DaemonError.Rafs);
     }
 }
