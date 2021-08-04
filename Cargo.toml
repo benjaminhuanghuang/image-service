@@ -56,3 +56,6 @@ virtiofs = [
 
 [workspace]
 members = ["utils", "rafs", "api", "storage"]
+
+[patch.'https://github.com/cloud-hypervisor/fuse-backend-rs.git']
+fuse-rs = { path = "../fuse-backend-rs", optional = true, rev = "cfd2cca" }
